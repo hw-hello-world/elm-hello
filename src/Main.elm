@@ -7,6 +7,8 @@ import Html.Events exposing (..)
 import String
 import Navigation
 import Date
+import Json.Decode as Decode
+import Http
 
 main : Program ProgramOptions Model Msg
 main =
@@ -29,6 +31,7 @@ type alias ProgramOptions =
 type alias Model =
     { history : List Navigation.Location
     , user : Maybe User
+    , metadata : Maybe Metadata
     }
 
 
@@ -39,13 +42,14 @@ type alias User =
 type Msg
     = Welcome
     | UrlChange Navigation.Location
+    | LoadMetadata (Result Http.Error Metadata)
 
 --------------------------------------------------
 -- INIT
 --------------------------------------------------
 
 init : ProgramOptions -> Navigation.Location  -> (Model, Cmd Msg)
-init opt location = (Model [ location ] opt.user, Cmd.none)
+init opt location = (Model [ location ] opt.user Nothing, send)
 
 
 --------------------------------------------------
@@ -63,6 +67,30 @@ update msg model =
         , Cmd.none
         )
 
+    LoadMetadata (Ok meta) -> ({ model | metadata = Just meta}, Cmd.none)
+    LoadMetadata (Err _) -> ({ model | metadata = Nothing}, Cmd.none)
+
+
+getMetadata : Http.Request Metadata
+getMetadata =
+    Http.get "https://jsonplaceholder.typicode.com/posts/1" decodeMetadata
+
+type alias Metadata =
+    { body : String
+    , postId : Int
+    , title : String
+    }
+
+decodeMetadata : Decode.Decoder Metadata
+decodeMetadata =
+  Decode.map3 Metadata
+    (Decode.field "body" Decode.string)
+    (Decode.field "id" Decode.int)
+    (Decode.field "title" Decode.string)
+
+send : Cmd Msg
+send =
+  Http.send LoadMetadata getMetadata
 
 --------------------------------------------------
 -- VIEW
@@ -71,32 +99,45 @@ update msg model =
 view : Model -> Html Msg
 view model =
     case List.head model.history of
-        Nothing -> homeView
+        Nothing -> homeView model
         Just loc -> handleRouter model loc
 
 handleRouter : Model -> Navigation.Location -> Html Msg
-handleRouter model loc = if loc.pathname == "/page1" then page1View
-                   else if loc.pathname == "/page2" then page2View
-                   else homeView
+handleRouter model loc = if loc.hash == "#page1" then page1View
+                   else if loc.hash == "#page2" then page2View
+                   else homeView model
 
-homeView : Html Msg
-homeView =
-    ul [ ]
-        [ li []
-              [ a [ href "/page1" ]
-                    [ text "Page 1" ]
+homeView : Model -> Html Msg
+homeView m =
+    div []
+        [
+         ul [ ]
+             [ li []
+                   [ a [ href "#page1" ]
+                         [ text "Page 1" ]
+                   ]
+             , li []
+                 [ a [ href "#page2" ]
+                       [ text "Page 2" ]
               ]
-        , li []
-              [ a [ href "/page2" ]
-                    [ text "Page 2" ]
-              ]
+             ]
+        , div []
+            (case m.metadata of
+                 Just md -> [ label [] [text "Title:"]
+                            , p [] [ text md.title ]
+                            , label [] [text "Body:"]
+                            , p [] [ text md.body]
+                            ]
+                 Nothing -> []
+            )
         ]
+
 
 page1View : Html Msg
 page1View = h1 [] [text "Welcome to Page 1"]
 
 page2View : Html Msg
-page2View = h1 [] [text "Welcome to Page 2"]  -- FIXME: after page render, send an message to JS.
+page2View = h1 [] [text "Welcome to Page 2"]
 
 
 --------------------------------------------------
