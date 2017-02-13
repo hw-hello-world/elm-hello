@@ -1,12 +1,10 @@
 const Elm = require('./Main.elm');
 
 export function bootstrap(config) {
-  const app = Elm.Main.embed(document.getElementById('app-container'), {
-    user: typeof config.user !== 'undefined' ? config.user : null,
-  });
+  const app = Elm.Main.embed(document.getElementById('app-container'));
 
-  app.ports.welcome.subscribe(() => {
-    console.log("Hello Elm");
+  app.ports.welcome.subscribe((msg) => {
+    console.log("Hello Elm: ", msg);
   });
 
 }

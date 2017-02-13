@@ -10,9 +10,9 @@ import Date
 import Json.Decode as Decode
 import Http
 
-main : Program ProgramOptions Model Msg
+main : Program Never Model Msg
 main =
-    Navigation.programWithFlags UrlChange
+    Navigation.program UrlChange
         { init = init
         , view = view
         , update = update
@@ -24,32 +24,26 @@ main =
 -- MODEL
 --------------------------------------------------
 
-type alias ProgramOptions =
-    { user : Maybe User
-    }
 
 type alias Model =
     { history : List Navigation.Location
-    , user : Maybe User
     , metadata : Maybe Metadata
+    , users : List User
     }
 
-
-type alias User =
-    { name : String
-    }
 
 type Msg
     = Welcome
     | UrlChange Navigation.Location
     | LoadMetadata (Result Http.Error Metadata)
+    | GetUsers (Result Http.Error (List User))
 
 --------------------------------------------------
 -- INIT
 --------------------------------------------------
 
-init : ProgramOptions -> Navigation.Location  -> (Model, Cmd Msg)
-init opt location = (Model [ location ] opt.user Nothing, send)
+init : Navigation.Location  -> (Model, Cmd Msg)
+init location = (Model [ location ] Nothing [], Cmd.none)
 
 
 --------------------------------------------------
@@ -62,24 +56,43 @@ update msg model =
     Welcome ->
         ( model, Cmd.none )
 
+    -- FIXME: how to respond both click and page reload event in order to load user list??
     UrlChange location ->
         ( { model | history = location :: model.history }
-        , Cmd.none
+        , (if location.hash == "#users" then getUsers else welcome location.hash)
         )
 
     LoadMetadata (Ok meta) -> ({ model | metadata = Just meta}, Cmd.none)
     LoadMetadata (Err _) -> ({ model | metadata = Nothing}, Cmd.none)
+    GetUsers (Ok users) -> ({ model | users = users}, Cmd.none)
+    GetUsers (Err _) -> ({ model | users = []}, Cmd.none)
 
 
-getMetadata : Http.Request Metadata
-getMetadata =
-    Http.get "https://jsonplaceholder.typicode.com/posts/1" decodeMetadata
+type alias User =
+    { id : String
+    , status : String
+    }
+getUsersReq : Http.Request (List User)
+getUsersReq = Http.get "/api/v1/users" decodeUser
+
+decodeUser : Decode.Decoder (List User)
+decodeUser = Decode.list (Decode.map2 User
+             (Decode.field "id" Decode.string)
+             (Decode.field "status" Decode.string))
+
+getUsers : Cmd Msg
+getUsers = Http.send GetUsers getUsersReq
 
 type alias Metadata =
     { body : String
     , postId : Int
     , title : String
     }
+
+
+getMetadataReq : Http.Request Metadata
+getMetadataReq =
+    Http.get "https://jsonplaceholder.typicode.com/posts/1" decodeMetadata
 
 decodeMetadata : Decode.Decoder Metadata
 decodeMetadata =
@@ -88,9 +101,9 @@ decodeMetadata =
     (Decode.field "id" Decode.int)
     (Decode.field "title" Decode.string)
 
-send : Cmd Msg
-send =
-  Http.send LoadMetadata getMetadata
+getMetadata : Cmd Msg
+getMetadata =
+  Http.send LoadMetadata getMetadataReq
 
 --------------------------------------------------
 -- VIEW
@@ -103,7 +116,7 @@ view model =
         Just loc -> handleRouter model loc
 
 handleRouter : Model -> Navigation.Location -> Html Msg
-handleRouter model loc = if loc.hash == "#page1" then page1View
+handleRouter model loc = if loc.hash == "#users" then usersPageView model
                    else if loc.hash == "#page2" then page2View
                    else homeView model
 
@@ -113,8 +126,8 @@ homeView m =
         [
          ul [ ]
              [ li []
-                   [ a [ href "#page1" ]
-                         [ text "Page 1" ]
+                   [ a [ href "#users" ]
+                         [ text "Users" ]
                    ]
              , li []
                  [ a [ href "#page2" ]
@@ -130,11 +143,22 @@ homeView m =
                             ]
                  Nothing -> []
             )
+        , userListView m
         ]
 
+userListView : Model -> Html Msg
+userListView m = case m.users of
+                     [] -> div [] []
+                     us -> ul [] (List.map userView us)
 
-page1View : Html Msg
-page1View = h1 [] [text "Welcome to Page 1"]
+userView : User -> Html Msg
+userView u = li [] [ text u.id, text " => ", text u.status ]
+
+usersPageView : Model -> Html Msg
+usersPageView m = div []
+                  [ h1 [] [ text "Welcome to Users page"]
+                  , userListView m
+                  ]
 
 page2View : Html Msg
 page2View = h1 [] [text "Welcome to Page 2"]
@@ -144,4 +168,4 @@ page2View = h1 [] [text "Welcome to Page 2"]
 -- PORTs
 --------------------------------------------------
 
-port welcome : () -> Cmd msg
+port welcome : String -> Cmd msg
