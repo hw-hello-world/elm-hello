@@ -26,7 +26,7 @@ module.exports = {
         changeOrigin: true,
         logLevel: 'debug',
         headers: {
-          'Authorization': 'SSWS 00opZbjVg6j9B3yh6IqgCZpwnqkKh2KBoPaYL3QPLF',
+          'Authorization': 'SSWS 002w3WpvjwZ7wmx_UHQzXiw6EbfhkDt6P6kYFRrWsM', // rain
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         }

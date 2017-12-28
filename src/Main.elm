@@ -9,6 +9,7 @@ import Navigation
 import Date
 import Json.Decode as Decode
 import Http
+import Debug
 
 main : Program Never Model Msg
 main =
@@ -52,6 +53,8 @@ init location = (Model [ location ] Nothing [], Cmd.none)
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
+  let x = Debug.log "Test Debug" 123
+  in
   case msg of
     Welcome ->
         ( model, Cmd.none )
